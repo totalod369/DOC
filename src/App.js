@@ -16,7 +16,8 @@ import {
 // --- CONFIGURATION ---
 const IG_DOC_URL =
   "https://www.instagram.com/dimension_overdose?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==";
-const IG_TOD_URL = "https://instagram.com/your_tod_handle";
+const IG_TOD_URL =
+  "https://www.instagram.com/totalxoverdose?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==";
 
 // --- SET YOUR NEW PASSWORD HERE ---
 const SECRET_PASSWORD = "AWAKEN";
