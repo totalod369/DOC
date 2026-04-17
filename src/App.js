@@ -34,7 +34,7 @@ const IG_TOD_URL =
 // --- SET YOUR NEW PASSWORD HERE ---
 const SECRET_PASSWORD = "AWAKEN";
 
-// --- DATABASE SETUP ---
+// --- DATABASE SETUP (Dual Environment) ---
 let app, auth, db, appId;
 
 try {
@@ -136,12 +136,12 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const getDatabaseRef = () => {
+  const getDatabaseRef = (uid) => {
     // Uses the restricted sandbox path while previewing, and your custom path when live
     if (typeof __firebase_config !== "undefined") {
-      return doc(db, "artifacts", appId, "users", user.uid, "profile", "data");
+      return doc(db, "artifacts", appId, "public", "data", "seekers", uid);
     }
-    return doc(db, "seekers", user.uid);
+    return doc(db, "seekers", uid);
   };
 
   const handlePasswordSubmit = async (e) => {
@@ -150,19 +150,26 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
       setChecking(true);
 
       // 1. IRONCLAD MEMORY CHECK: Did this browser register before?
-      if (localStorage.getItem("doc_seeker_registered") === "true") {
-        onUnlock(); // Stamp found! Let them straight in.
-        return;
+      try {
+        if (localStorage.getItem("doc_seeker_registered") === "true") {
+          onUnlock(); // Stamp found! Let them straight in.
+          return;
+        }
+      } catch (err) {
+        console.warn("Local storage check bypassed.");
       }
 
-      // 2. FALLBACK CHECK: Check Firebase just in case
+      // 2. FALLBACK CHECK: Check Firebase
       if (user && db) {
         try {
-          const docRef = getDatabaseRef();
+          const docRef = getDatabaseRef(user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            localStorage.setItem("doc_seeker_registered", "true"); // Add stamp for next time
+            try {
+              localStorage.setItem("doc_seeker_registered", "true");
+            } catch (err) {}
             onUnlock();
+            return;
           } else {
             setStep("REGISTER"); // New user, ask for info
           }
@@ -186,22 +193,38 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
     setChecking(true);
 
     // 1. STAMP THE BROWSER: Remember this user forever
-    localStorage.setItem("doc_seeker_registered", "true");
+    try {
+      localStorage.setItem("doc_seeker_registered", "true");
+    } catch (err) {
+      console.warn("Local storage saving bypassed.");
+    }
 
-    // 2. SAVE TO FIREBASE: Store their lead details
-    if (user && db) {
+    // 2. SAVE TO FIREBASE (BULLETPROOF FIX):
+    if (db) {
       try {
-        const docRef = getDatabaseRef();
+        // Generate a unique ID if the auth system hasn't provided one yet
+        const uniqueId = user
+          ? user.uid
+          : "seeker_" +
+            Date.now().toString(36) +
+            Math.random().toString(36).substr(2);
+        const docRef = getDatabaseRef(uniqueId);
+
         await setDoc(docRef, {
           name: formData.name,
           phone: formData.phone,
           email: formData.email,
           registeredAt: new Date().toISOString(),
+          status: user ? "authenticated" : "fallback_id",
         });
+        console.log("Data successfully pushed to Firebase!");
       } catch (err) {
-        console.error("Failed to save profile.", err);
+        console.error("Failed to save profile. Check Firestore Rules.", err);
       }
+    } else {
+      console.error("Database connection was not established.");
     }
+
     setChecking(false);
     onUnlock();
   };
@@ -327,7 +350,7 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
 
         <div className="mt-12 pt-4 border-t border-zinc-900 text-[10px] text-zinc-700 font-bold flex justify-between uppercase tracking-widest">
           <span>HINT: CHECK THE LORE DOCS</span>
-          <span>SYS.VER: 1.2.1</span>
+          <span>SYS.VER: 1.3.1</span>
         </div>
       </div>
     </div>
@@ -522,8 +545,7 @@ const ArchivesTab = () => {
       text: "The moment before the shift.",
       type: "comic",
       link: IG_DOC_URL,
-      imgUrl:
-        "https://www.instagram.com/p/DUWlICzklca/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==",
+      imgUrl: "/Awakening.png",
     },
     {
       id: 2,
@@ -555,7 +577,7 @@ const ArchivesTab = () => {
       text: "Standing at the edge of chaos.",
       type: "art",
       link: IG_DOC_URL,
-      imgUrl: "https://picsum.photos/seed/scifi/400/400",
+      imgUrl: "/Seeker.png",
     },
     {
       id: 6,
