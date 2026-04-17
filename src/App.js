@@ -11,7 +11,18 @@ import {
   ChevronRight,
   Zap,
   ExternalLink,
+  User,
 } from "lucide-react";
+
+// --- FIREBASE DATABASE IMPORTS ---
+import { initializeApp } from "firebase/app";
+import {
+  getAuth,
+  signInAnonymously,
+  signInWithCustomToken,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
 // --- CONFIGURATION ---
 const IG_DOC_URL =
@@ -22,14 +33,57 @@ const IG_TOD_URL =
 // --- SET YOUR NEW PASSWORD HERE ---
 const SECRET_PASSWORD = "AWAKEN";
 
+// --- DATABASE SETUP ---
+let app, auth, db, appId;
+try {
+  // This connects to the database if running in a supported environment
+  if (typeof __firebase_config !== "undefined") {
+    const config = JSON.parse(__firebase_config);
+    app = initializeApp(config);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+  }
+} catch (e) {
+  console.error("Database connection standing by for live environment.");
+}
+
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const [accessGranted, setAccessGranted] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Authenticate the user's device silently in the background
+  useEffect(() => {
+    if (!auth) return;
+    const initAuth = async () => {
+      try {
+        if (
+          typeof __initial_auth_token !== "undefined" &&
+          __initial_auth_token
+        ) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth); // Assigns a unique anonymous ID to the device
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-zinc-300 font-mono selection:bg-blue-500 selection:text-black">
       {!accessGranted ? (
-        <Gatekeeper onUnlock={() => setAccessGranted(true)} />
+        <Gatekeeper
+          onUnlock={() => setAccessGranted(true)}
+          user={user}
+          db={db}
+          appId={appId}
+        />
       ) : (
         <DOCDashboard />
       )}
@@ -37,11 +91,16 @@ export default function App() {
   );
 }
 
-// --- GATEKEEPER COMPONENT (The Password Gate) ---
-const Gatekeeper = ({ onUnlock }) => {
+// --- GATEKEEPER COMPONENT (The Password & Lead Form) ---
+const Gatekeeper = ({ onUnlock, user, db, appId }) => {
+  const [step, setStep] = useState("PASSWORD"); // 'PASSWORD' or 'REGISTER'
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const [typing, setTyping] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  // Registration Form Data
+  const [formData, setFormData] = useState({ name: "", phone: "", email: "" });
 
   const welcomeText =
     "A.R_I18N // SYSTEM ANOMALY DETECTED. SPECTACLE DISTRACTS. REFLECTION DEMANDED. ENTER THE SEEKER's FREQUENCY TO PROCEED.";
@@ -56,15 +115,79 @@ const Gatekeeper = ({ onUnlock }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSubmit = (e) => {
+  // Handle Password Submission
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (input.toUpperCase() === SECRET_PASSWORD.toUpperCase()) {
-      onUnlock();
+      setChecking(true);
+
+      // Check the database to see if this device has registered before
+      if (user && db) {
+        try {
+          const docRef = doc(
+            db,
+            "artifacts",
+            appId,
+            "users",
+            user.uid,
+            "profile",
+            "data"
+          );
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            // They have registered before! Let them right in.
+            onUnlock();
+          } else {
+            // First time! Ask for their details.
+            setStep("REGISTER");
+          }
+        } catch (err) {
+          console.error(err);
+          setStep("REGISTER"); // Fallback if db fails
+        }
+      } else {
+        // If running locally without full database setup, just show the form for testing
+        setStep("REGISTER");
+      }
+      setChecking(false);
     } else {
       setError(true);
       setTimeout(() => setError(false), 2000);
       setInput("");
     }
+  };
+
+  // Handle Registration Form Submission
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    setChecking(true);
+
+    // Save their details to the database, linked to their anonymous device ID
+    if (user && db) {
+      try {
+        const docRef = doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          user.uid,
+          "profile",
+          "data"
+        );
+        await setDoc(docRef, {
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          registeredAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("Failed to save profile", err);
+      }
+    }
+
+    setChecking(false);
+    onUnlock(); // Enter the portal!
   };
 
   return (
@@ -87,35 +210,114 @@ const Gatekeeper = ({ onUnlock }) => {
           <span className="animate-pulse bg-blue-500 w-2 h-4 inline-block ml-1 align-middle"></span>
         </div>
 
-        <form onSubmit={handleSubmit} className="relative">
-          <div className="flex items-center border-b-2 border-zinc-700 focus-within:border-blue-500 transition-colors pb-2">
-            <ChevronRight className="w-5 h-5 text-zinc-500 mr-2" />
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              className="bg-transparent border-none outline-none flex-1 text-white uppercase tracking-[0.3em] font-bold placeholder-zinc-700"
-              placeholder="ENTER FREQUENCY"
-              autoFocus
-              maxLength={10}
-            />
-            {error ? (
-              <Lock className="w-5 h-5 text-red-500" />
-            ) : (
-              <Unlock className="w-5 h-5 text-zinc-500" />
-            )}
-          </div>
+        {/* STEP 1: PASSWORD INPUT */}
+        {step === "PASSWORD" && (
+          <form
+            onSubmit={handlePasswordSubmit}
+            className="relative animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center border-b-2 border-zinc-700 focus-within:border-blue-500 transition-colors pb-2">
+              <ChevronRight className="w-5 h-5 text-zinc-500 mr-2" />
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                className="bg-transparent border-none outline-none flex-1 text-white uppercase tracking-[0.3em] font-bold placeholder-zinc-700"
+                placeholder="ENTER FREQUENCY"
+                autoFocus
+                disabled={checking}
+                maxLength={15}
+              />
+              {checking ? (
+                <span className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+              ) : error ? (
+                <Lock className="w-5 h-5 text-red-500" />
+              ) : (
+                <Unlock className="w-5 h-5 text-zinc-500" />
+              )}
+            </div>
 
-          {error && (
-            <p className="text-red-500 text-xs mt-3 uppercase tracking-widest animate-bounce">
-              [ERR] Frequency unrecognized. The way back is lost.
-            </p>
-          )}
-        </form>
+            {error && (
+              <p className="text-red-500 text-xs mt-3 uppercase tracking-widest animate-bounce">
+                [ERR] Frequency unrecognized. The way back is lost.
+              </p>
+            )}
+          </form>
+        )}
+
+        {/* STEP 2: NEW SEEKER REGISTRATION FORM */}
+        {step === "REGISTER" && (
+          <form
+            onSubmit={handleRegisterSubmit}
+            className="space-y-6 animate-in fade-in slide-in-from-bottom-4"
+          >
+            <div className="flex items-center gap-2 text-rose-500 mb-2 border border-rose-500/30 bg-rose-500/10 p-3">
+              <User className="w-4 h-4" />
+              <p className="text-xs uppercase tracking-widest font-bold">
+                NEW SIGNATURE DETECTED. LOG IDENTITY TO PROCEED.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                  ID:
+                </div>
+                <input
+                  required
+                  type="text"
+                  placeholder="FULL NAME"
+                  className="w-full bg-black border border-zinc-800 pl-12 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                  COM:
+                </div>
+                <input
+                  required
+                  type="tel"
+                  placeholder="PHONE NUMBER"
+                  className="w-full bg-black border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                  NET:
+                </div>
+                <input
+                  required
+                  type="email"
+                  placeholder="EMAIL ADDRESS"
+                  className="w-full bg-black border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={checking}
+              className="w-full bg-blue-500 text-black font-bold uppercase tracking-widest py-3 mt-2 hover:bg-blue-400 transition-colors flex items-center justify-center gap-2"
+            >
+              {checking ? "PROCESSING..." : "INITIATE TRANSFER"}
+            </button>
+          </form>
+        )}
 
         <div className="mt-12 pt-4 border-t border-zinc-900 text-xs text-zinc-600 flex justify-between">
           <span>HINT: CHECK THE LORE DOCS</span>
-          <span>SYS.VER: 1.0.0</span>
+          <span>SYS.VER: 1.1.0</span>
         </div>
       </div>
     </div>
