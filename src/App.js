@@ -500,8 +500,7 @@ const ArchivesTab = () => {
       text: "The moment before the shift.",
       type: "comic",
       link: IG_DOC_URL,
-      imgUrl:
-        "https://www.instagram.com/p/DUWlICzklca/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==",
+      imgUrl: "/Awakening.png",
     },
     {
       id: 2,
