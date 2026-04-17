@@ -532,7 +532,7 @@ const ArchivesTab = () => {
       text: "Standing at the edge of chaos.",
       type: "art",
       link: IG_DOC_URL,
-      imgUrl: "https://picsum.photos/seed/scifi/400/400",
+      imgUrl: "/Seeker.png",
     },
     {
       id: 6,
