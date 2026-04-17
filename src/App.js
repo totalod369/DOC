@@ -12,6 +12,7 @@ import {
   Zap,
   ExternalLink,
   User,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // --- FIREBASE DATABASE IMPORTS ---
@@ -36,7 +37,6 @@ const SECRET_PASSWORD = "AWAKEN";
 // --- DATABASE SETUP ---
 let app, auth, db, appId;
 try {
-  // This connects to the database if running in a supported environment
   if (typeof __firebase_config !== "undefined") {
     const config = JSON.parse(__firebase_config);
     app = initializeApp(config);
@@ -53,7 +53,6 @@ export default function App() {
   const [accessGranted, setAccessGranted] = useState(false);
   const [user, setUser] = useState(null);
 
-  // Authenticate the user's device silently in the background
   useEffect(() => {
     if (!auth) return;
     const initAuth = async () => {
@@ -64,7 +63,7 @@ export default function App() {
         ) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-          await signInAnonymously(auth); // Assigns a unique anonymous ID to the device
+          await signInAnonymously(auth);
         }
       } catch (e) {
         console.error(e);
@@ -76,7 +75,14 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 font-mono selection:bg-blue-500 selection:text-black">
+    <div className="min-h-screen bg-black text-zinc-300 font-mono selection:bg-blue-500 selection:text-black overflow-hidden relative">
+      {/* Global Ambient Glow */}
+      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-blue-900/20 blur-[120px] rounded-full pointer-events-none mix-blend-screen animate-pulse"></div>
+      <div
+        className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-rose-900/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen animate-pulse"
+        style={{ animationDelay: "2s" }}
+      ></div>
+
       {!accessGranted ? (
         <Gatekeeper
           onUnlock={() => setAccessGranted(true)}
@@ -91,15 +97,13 @@ export default function App() {
   );
 }
 
-// --- GATEKEEPER COMPONENT (The Password & Lead Form) ---
+// --- GATEKEEPER COMPONENT ---
 const Gatekeeper = ({ onUnlock, user, db, appId }) => {
-  const [step, setStep] = useState("PASSWORD"); // 'PASSWORD' or 'REGISTER'
+  const [step, setStep] = useState("PASSWORD");
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const [typing, setTyping] = useState("");
   const [checking, setChecking] = useState(false);
-
-  // Registration Form Data
   const [formData, setFormData] = useState({ name: "", phone: "", email: "" });
 
   const welcomeText =
@@ -115,13 +119,10 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle Password Submission
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (input.toUpperCase() === SECRET_PASSWORD.toUpperCase()) {
       setChecking(true);
-
-      // Check the database to see if this device has registered before
       if (user && db) {
         try {
           const docRef = doc(
@@ -134,20 +135,16 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
             "data"
           );
           const docSnap = await getDoc(docRef);
-
           if (docSnap.exists()) {
-            // They have registered before! Let them right in.
             onUnlock();
           } else {
-            // First time! Ask for their details.
             setStep("REGISTER");
           }
         } catch (err) {
           console.error(err);
-          setStep("REGISTER"); // Fallback if db fails
+          setStep("REGISTER");
         }
       } else {
-        // If running locally without full database setup, just show the form for testing
         setStep("REGISTER");
       }
       setChecking(false);
@@ -158,12 +155,9 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
     }
   };
 
-  // Handle Registration Form Submission
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setChecking(true);
-
-    // Save their details to the database, linked to their anonymous device ID
     if (user && db) {
       try {
         const docRef = doc(
@@ -185,32 +179,29 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
         console.error("Failed to save profile", err);
       }
     }
-
     setChecking(false);
-    onUnlock(); // Enter the portal!
+    onUnlock();
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 relative overflow-hidden">
-      {/* Background Grid */}
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 relative z-10">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
 
-      <div className="max-w-xl w-full z-10 bg-zinc-950 border border-zinc-800 p-8 shadow-2xl relative">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-rose-600"></div>
+      <div className="max-w-xl w-full z-10 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-8 shadow-2xl relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-rose-600"></div>
 
         <div className="flex items-center gap-3 mb-6 text-blue-500">
           <Terminal className="w-6 h-6 animate-pulse" />
-          <span className="tracking-widest uppercase text-sm font-bold">
+          <span className="tracking-widest uppercase text-sm font-bold shadow-blue-500/50 drop-shadow-md">
             Terminal / DOC.OS
           </span>
         </div>
 
-        <div className="min-h-[80px] mb-8 text-sm md:text-base text-zinc-400 leading-relaxed">
+        <div className="min-h-[80px] mb-8 text-sm md:text-base text-zinc-400 leading-relaxed font-bold">
           {typing}
-          <span className="animate-pulse bg-blue-500 w-2 h-4 inline-block ml-1 align-middle"></span>
+          <span className="animate-pulse bg-blue-500 w-2 h-4 inline-block ml-1 align-middle shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
         </div>
 
-        {/* STEP 1: PASSWORD INPUT */}
         {step === "PASSWORD" && (
           <form
             onSubmit={handlePasswordSubmit}
@@ -222,7 +213,7 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                className="bg-transparent border-none outline-none flex-1 text-white uppercase tracking-[0.3em] font-bold placeholder-zinc-700"
+                className="bg-transparent border-none outline-none flex-1 text-white uppercase tracking-[0.3em] font-black placeholder-zinc-800"
                 placeholder="ENTER FREQUENCY"
                 autoFocus
                 disabled={checking}
@@ -231,27 +222,25 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
               {checking ? (
                 <span className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
               ) : error ? (
-                <Lock className="w-5 h-5 text-red-500" />
+                <Lock className="w-5 h-5 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
               ) : (
                 <Unlock className="w-5 h-5 text-zinc-500" />
               )}
             </div>
-
             {error && (
-              <p className="text-red-500 text-xs mt-3 uppercase tracking-widest animate-bounce">
+              <p className="text-red-500 text-xs mt-3 uppercase tracking-widest animate-bounce font-bold">
                 [ERR] Frequency unrecognized. The way back is lost.
               </p>
             )}
           </form>
         )}
 
-        {/* STEP 2: NEW SEEKER REGISTRATION FORM */}
         {step === "REGISTER" && (
           <form
             onSubmit={handleRegisterSubmit}
             className="space-y-6 animate-in fade-in slide-in-from-bottom-4"
           >
-            <div className="flex items-center gap-2 text-rose-500 mb-2 border border-rose-500/30 bg-rose-500/10 p-3">
+            <div className="flex items-center gap-2 text-rose-500 mb-2 border border-rose-500/30 bg-rose-500/10 p-3 shadow-[0_0_15px_rgba(225,29,72,0.1)]">
               <User className="w-4 h-4" />
               <p className="text-xs uppercase tracking-widest font-bold">
                 NEW SIGNATURE DETECTED. LOG IDENTITY TO PROCEED.
@@ -260,44 +249,42 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
 
             <div className="space-y-4">
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest font-bold">
                   ID:
                 </div>
                 <input
                   required
                   type="text"
                   placeholder="FULL NAME"
-                  className="w-full bg-black border border-zinc-800 pl-12 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  className="w-full bg-black/50 border border-zinc-800 pl-12 pr-4 py-3 text-sm text-white uppercase font-bold focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-800"
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
                 />
               </div>
-
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest font-bold">
                   COM:
                 </div>
                 <input
                   required
                   type="tel"
                   placeholder="PHONE NUMBER"
-                  className="w-full bg-black border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  className="w-full bg-black/50 border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase font-bold focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-800"
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
                 />
               </div>
-
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs tracking-widest font-bold">
                   NET:
                 </div>
                 <input
                   required
                   type="email"
                   placeholder="EMAIL ADDRESS"
-                  className="w-full bg-black border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-700"
+                  className="w-full bg-black/50 border border-zinc-800 pl-14 pr-4 py-3 text-sm text-white uppercase font-bold focus:border-blue-500 focus:outline-none transition-colors placeholder-zinc-800"
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
@@ -308,16 +295,16 @@ const Gatekeeper = ({ onUnlock, user, db, appId }) => {
             <button
               type="submit"
               disabled={checking}
-              className="w-full bg-blue-500 text-black font-bold uppercase tracking-widest py-3 mt-2 hover:bg-blue-400 transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.2em] py-4 mt-2 transition-all hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2"
             >
               {checking ? "PROCESSING..." : "INITIATE TRANSFER"}
             </button>
           </form>
         )}
 
-        <div className="mt-12 pt-4 border-t border-zinc-900 text-xs text-zinc-600 flex justify-between">
+        <div className="mt-12 pt-4 border-t border-zinc-900 text-[10px] text-zinc-700 font-bold flex justify-between uppercase tracking-widest">
           <span>HINT: CHECK THE LORE DOCS</span>
-          <span>SYS.VER: 1.1.0</span>
+          <span>SYS.VER: 1.2.0</span>
         </div>
       </div>
     </div>
@@ -329,20 +316,23 @@ const DOCDashboard = () => {
   const [activeTab, setActiveTab] = useState("prophecy");
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row relative z-10">
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 border-r border-zinc-800 bg-zinc-950 flex flex-col">
-        <div className="p-6 border-b border-zinc-800">
-          <h1 className="text-xl font-black text-white tracking-tighter uppercase leading-tight">
+      <aside className="w-full md:w-64 border-r border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl flex flex-col z-20 shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
+        <div className="p-6 border-b border-zinc-800/80">
+          <h1 className="text-xl font-black text-white tracking-tighter uppercase leading-tight drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
             DIMENSION <br />
-            <span className="text-blue-500">OVERDOSE</span> <br />
+            <span className="text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]">
+              OVERDOSE
+            </span>{" "}
+            <br />
             COMICS
           </h1>
           <a
             href={IG_DOC_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-500 mt-2 tracking-widest hover:text-blue-400 transition-colors"
+            className="inline-flex items-center gap-1 text-xs text-blue-500 mt-3 font-bold tracking-[0.2em] hover:text-blue-400 hover:shadow-blue-500 transition-colors"
           >
             [ @DOC ARCHIVES ] <ExternalLink className="w-3 h-3" />
           </a>
@@ -369,17 +359,24 @@ const DOCDashboard = () => {
           />
         </nav>
 
-        <div className="p-6 border-t border-zinc-800 text-xs text-blue-500 font-bold tracking-widest uppercase flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+        <div className="p-6 border-t border-zinc-800/80 text-[10px] text-blue-500 font-black tracking-[0.2em] uppercase flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
           Connected: {SECRET_PASSWORD}
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 bg-black p-6 md:p-12 overflow-y-auto relative">
-        {/* Background Graphic */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none">
-          <Skull className="w-[40vw] h-[40vw]" />
+      <main className="flex-1 bg-black/60 backdrop-blur-sm p-6 md:p-12 overflow-y-auto relative">
+        {/* Deep Background Graphic */}
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.05] pointer-events-none mix-blend-screen">
+          <Skull
+            className="w-[50vw] h-[50vw] text-zinc-500 blur-[2px]"
+            strokeWidth={1}
+          />
+          <Skull
+            className="absolute inset-0 w-[50vw] h-[50vw] text-blue-500 blur-[8px] animate-pulse"
+            strokeWidth={0.5}
+          />
         </div>
 
         <div className="max-w-4xl mx-auto relative z-10">
@@ -396,31 +393,58 @@ const DOCDashboard = () => {
 const NavButton = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-none transition-all duration-300 uppercase text-xs font-bold tracking-widest border-l-2 ${
+    className={`w-full flex items-center gap-3 px-4 py-4 rounded-none transition-all duration-300 uppercase text-xs font-black tracking-[0.2em] border-l-4 ${
       active
-        ? "bg-blue-500/10 text-blue-400 border-blue-500"
+        ? "bg-gradient-to-r from-blue-500/20 to-transparent text-blue-400 border-blue-500 shadow-[inset_4px_0_12px_rgba(59,130,246,0.1)]"
         : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900"
     }`}
   >
-    {React.cloneElement(icon, { className: "w-4 h-4" })}
+    {React.cloneElement(icon, {
+      className: `w-4 h-4 ${
+        active ? "drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]" : ""
+      }`,
+    })}
     {label}
   </button>
 );
 
 // --- TAB 1: THE PROPHECY (Lore Text) ---
 const ProphecyTab = () => (
-  <div className="space-y-12 animate-in fade-in duration-700">
-    <header className="border-b border-zinc-800 pb-6">
-      <h2 className="text-sm text-blue-500 tracking-[0.4em] mb-2 uppercase">
+  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <header className="border-b border-zinc-800 pb-8 relative">
+      <div className="absolute right-0 top-0 opacity-20 pointer-events-none">
+        <div className="w-32 h-32 border border-blue-500/30 rounded-full animate-[spin_10s_linear_infinite] flex items-center justify-center">
+          <div className="w-24 h-24 border border-rose-500/30 rounded-full animate-[spin_7s_linear_infinite_reverse]"></div>
+        </div>
+      </div>
+      <h2 className="text-xs text-blue-500 font-bold tracking-[0.4em] mb-3 uppercase drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]">
         File: A.R_I18N
       </h2>
-      <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter">
+      <h1 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter drop-shadow-lg">
         The Prophecy
       </h1>
     </header>
 
-    <article className="prose prose-invert prose-p:text-zinc-400 prose-p:leading-loose prose-p:font-mono max-w-none">
-      <p className="text-xl text-white font-bold border-l-4 border-blue-500 pl-6 py-2 bg-blue-500/5">
+    {/* Lore Image Banner */}
+    <div className="w-full h-64 border border-zinc-800 relative overflow-hidden group">
+      <div className="absolute inset-0 bg-blue-900 mix-blend-color z-10 opacity-40 group-hover:opacity-20 transition-opacity"></div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-20"></div>
+      {/* Generic abstract placeholder image */}
+      <img
+        src="https://picsum.photos/seed/dimension/800/400"
+        alt="Dimension Visual"
+        className="w-full h-full object-cover filter contrast-125 grayscale-[30%] scale-105 group-hover:scale-100 transition-transform duration-1000"
+      />
+      <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2">
+        <ImageIcon className="w-4 h-4 text-zinc-400" />
+        <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">
+          Encrypted Archive .001
+        </span>
+      </div>
+    </div>
+
+    <article className="prose prose-invert prose-p:text-zinc-400 prose-p:leading-loose prose-p:font-mono prose-p:text-sm max-w-none">
+      <p className="text-lg md:text-xl text-white font-bold border-l-4 border-blue-500 pl-6 py-4 bg-gradient-to-r from-blue-500/10 to-transparent shadow-[inset_4px_0_0_rgba(59,130,246,1)]">
         What comes next is not spectacle. Because spectacle distracts. It
         entertains without asking anything of you. And this universe does not
         begin with distraction. It begins by slowing you down. It is reflection.
@@ -446,17 +470,18 @@ const ProphecyTab = () => (
             Not content with answers that only worked on the surface. In the
             search for meaning, the Seeker went too far.
           </p>
-          <p className="text-rose-500 font-bold">
+          <p className="text-rose-500 font-black drop-shadow-[0_0_5px_rgba(225,29,72,0.6)]">
             Beyond certainty. Beyond return. The way back was lost.
           </p>
         </div>
       </div>
 
-      <div className="mt-16 p-8 border border-zinc-800 bg-zinc-950 text-center space-y-4">
-        <p className="uppercase tracking-widest text-sm text-zinc-500">
+      <div className="mt-16 p-10 border border-zinc-800 bg-zinc-950/80 backdrop-blur-md text-center space-y-4 relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-rose-500 to-transparent"></div>
+        <p className="uppercase font-bold tracking-[0.3em] text-[10px] text-zinc-500">
           Transmission End
         </p>
-        <p className="text-2xl font-black text-white tracking-tighter">
+        <p className="text-2xl md:text-3xl font-black text-white tracking-tighter group-hover:drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] transition-all">
           YOU'VE GOT GREATNESS INSIDE YOU.
         </p>
       </div>
@@ -466,6 +491,8 @@ const ProphecyTab = () => (
 
 // --- TAB 2: VISUAL ARCHIVES (IG Grid Simulation) ---
 const ArchivesTab = () => {
+  // Added imgUrl to simulate the real IG grid posts.
+  // We use specific seed words in picsum to get consistent abstract/dark images for the preview.
   const panels = [
     {
       id: 1,
@@ -473,6 +500,8 @@ const ArchivesTab = () => {
       text: "The moment before the shift.",
       type: "comic",
       link: IG_DOC_URL,
+      imgUrl:
+        "https://www.instagram.com/p/DUWlICzklca/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==",
     },
     {
       id: 2,
@@ -480,6 +509,7 @@ const ArchivesTab = () => {
       text: "Reality begins to distort.",
       type: "art",
       link: IG_DOC_URL,
+      imgUrl: "https://picsum.photos/seed/neon/400/400",
     },
     {
       id: 3,
@@ -487,6 +517,7 @@ const ArchivesTab = () => {
       text: "Is intensity a gift or a burden?",
       type: "quote",
       link: IG_TOD_URL,
+      imgUrl: "https://picsum.photos/seed/darkness/400/400",
     },
     {
       id: 4,
@@ -494,6 +525,7 @@ const ArchivesTab = () => {
       text: "A glitch in the perfect system.",
       type: "comic",
       link: IG_DOC_URL,
+      imgUrl: "https://picsum.photos/seed/glitch/400/400",
     },
     {
       id: 5,
@@ -501,6 +533,7 @@ const ArchivesTab = () => {
       text: "Standing at the edge of chaos.",
       type: "art",
       link: IG_DOC_URL,
+      imgUrl: "https://picsum.photos/seed/scifi/400/400",
     },
     {
       id: 6,
@@ -508,36 +541,37 @@ const ArchivesTab = () => {
       text: "The way back was lost.",
       type: "comic",
       link: IG_DOC_URL,
+      imgUrl: "https://picsum.photos/seed/space/400/400",
     },
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      <header className="flex flex-col md:flex-row md:justify-between md:items-end border-b border-zinc-800 pb-6 gap-4">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-end border-b border-zinc-800 pb-8 gap-4">
         <div>
-          <h2 className="text-sm text-blue-500 tracking-[0.4em] mb-2 uppercase">
+          <h2 className="text-xs text-blue-500 font-bold tracking-[0.4em] mb-3 uppercase drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]">
             Database: Visual
           </h2>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
+          <h1 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter drop-shadow-lg">
             Fragment Archives
           </h1>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="text-xs text-zinc-500 tracking-widest">
+        <div className="flex flex-col items-start md:items-end gap-2">
+          <div className="text-[10px] font-bold text-zinc-500 tracking-[0.2em]">
             [ 9-GRID SYNC ACTIVE ]
           </div>
           <a
             href={IG_DOC_URL}
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30 px-3 py-1 uppercase hover:bg-blue-500 hover:text-black transition-colors flex items-center gap-2"
+            className="text-xs font-black bg-blue-500/10 text-blue-400 border border-blue-500/40 px-4 py-2 uppercase hover:bg-blue-600 hover:text-white transition-all shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] flex items-center gap-2"
           >
             View Live on IG <ExternalLink className="w-3 h-3" />
           </a>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {panels.map((panel) => (
           <a
             key={panel.id}
@@ -546,43 +580,68 @@ const ArchivesTab = () => {
             rel="noreferrer"
             className="group relative aspect-square bg-zinc-950 border border-zinc-800 overflow-hidden cursor-crosshair block"
           >
-            {/* Base Background indicating type */}
-            <div
-              className={`absolute inset-0 opacity-20 transition-opacity duration-500 group-hover:opacity-10 
-              ${
-                panel.type === "comic"
-                  ? "bg-blue-600"
-                  : panel.type === "art"
-                  ? "bg-rose-600"
-                  : "bg-zinc-600"
-              }`}
-            />
+            {/* Visual Image Background */}
+            <div className="absolute inset-0 z-0">
+              <img
+                src={panel.imgUrl}
+                alt={panel.title}
+                className="w-full h-full object-cover filter contrast-125 grayscale-[20%] opacity-40 group-hover:opacity-70 group-hover:scale-110 transition-all duration-700"
+              />
+              {/* Color Blend Overlay to give the "Dimension" aesthetic */}
+              <div
+                className={`absolute inset-0 mix-blend-multiply transition-opacity duration-500 opacity-80 group-hover:opacity-40 
+                ${
+                  panel.type === "comic"
+                    ? "bg-blue-700"
+                    : panel.type === "art"
+                    ? "bg-rose-700"
+                    : "bg-zinc-800"
+                }`}
+              />
+            </div>
 
-            {/* Grid Lines Overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+            {/* Hacker Grid Lines Overlay */}
+            <div className="absolute inset-0 z-10 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
 
-            {/* Content */}
-            <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
+            {/* Content Foreground */}
+            <div className="absolute inset-0 p-6 flex flex-col justify-between z-20">
               <div className="flex justify-between items-start">
-                <div className="text-xs font-bold text-zinc-500 tracking-widest">
+                <div className="bg-black/80 backdrop-blur-sm px-2 py-1 text-[10px] font-black text-white tracking-[0.2em] border border-zinc-800">
                   {panel.title}
                 </div>
-                <ExternalLink className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="bg-black/50 p-1.5 rounded-full backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ExternalLink className="w-4 h-4 text-white" />
+                </div>
               </div>
 
-              <div className="translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out">
-                <Database className="w-6 h-6 text-blue-500 mb-3" />
-                <p className="text-sm font-bold text-white uppercase">
+              <div className="translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out bg-gradient-to-t from-black/90 via-black/50 to-transparent -mx-6 -mb-6 p-6 pt-12">
+                <Database
+                  className={`w-5 h-5 mb-3 ${
+                    panel.type === "art" ? "text-rose-400" : "text-blue-400"
+                  }`}
+                />
+                <p className="text-sm font-black text-white uppercase drop-shadow-md">
                   {panel.text}
                 </p>
-                <p className="text-xs text-blue-400 mt-2 tracking-widest">
+                <p
+                  className={`text-[10px] mt-2 font-bold tracking-[0.2em] ${
+                    panel.type === "art" ? "text-rose-400" : "text-blue-400"
+                  }`}
+                >
                   DECODE ON INSTAGRAM →
                 </p>
               </div>
             </div>
 
-            {/* Hover Frame */}
-            <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 transition-colors duration-300 z-20"></div>
+            {/* Hover Frame Glow */}
+            <div
+              className={`absolute inset-0 border-2 border-transparent transition-colors duration-300 z-30 pointer-events-none
+              ${
+                panel.type === "art"
+                  ? "group-hover:border-rose-500/50 group-hover:shadow-[inset_0_0_20px_rgba(225,29,72,0.3)]"
+                  : "group-hover:border-blue-500/50 group-hover:shadow-[inset_0_0_20px_rgba(59,130,246,0.3)]"
+              }`}
+            ></div>
           </a>
         ))}
 
@@ -592,12 +651,22 @@ const ArchivesTab = () => {
             key={lockedId}
             className="aspect-square bg-black border border-zinc-900 flex items-center justify-center flex-col gap-3 group relative overflow-hidden"
           >
-            <Lock className="w-6 h-6 text-zinc-700 group-hover:scale-110 transition-transform" />
-            <span className="text-xs tracking-widest text-zinc-700 text-center px-4">
+            {/* Faint static image for locked panels */}
+            <img
+              src={`https://picsum.photos/seed/lock${lockedId}/400/400`}
+              alt="Encrypted"
+              className="absolute inset-0 w-full h-full object-cover opacity-10 filter blur-sm grayscale"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:10px_10px]"></div>
+
+            <div className="z-10 bg-black/80 p-4 border border-zinc-800 rounded-full group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,0,0,0.8)]">
+              <Lock className="w-6 h-6 text-zinc-600 group-hover:text-red-500 transition-colors" />
+            </div>
+            <span className="z-10 text-[10px] font-bold tracking-[0.3em] text-zinc-600 text-center px-4 bg-black/60 py-1">
               ENCRYPTED
               <br />
-              <span className="text-[10px] text-zinc-800">
-                AWAITING IG TRANSMISSION
+              <span className="text-[8px] text-zinc-700">
+                AWAITING TRANSMISSION
               </span>
             </span>
           </div>
@@ -634,53 +703,61 @@ const SeekersTab = () => {
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      <header className="border-b border-zinc-800 pb-6">
-        <h2 className="text-sm text-green-500 tracking-[0.4em] mb-2 uppercase">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="border-b border-zinc-800 pb-8">
+        <h2 className="text-xs text-green-500 font-bold tracking-[0.4em] mb-3 uppercase drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]">
           Comm-Link: Active
         </h2>
-        <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
+        <h1 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter drop-shadow-lg">
           Seeker Transmissions
         </h1>
       </header>
 
-      <div className="bg-zinc-900/50 border border-zinc-800 p-6">
-        <div className="space-y-6">
+      <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 p-6 md:p-8 shadow-2xl relative overflow-hidden">
+        {/* Subtle scanline effect */}
+        <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-0"></div>
+
+        <div className="space-y-6 relative z-10">
           {logs.map((log) => (
             <div
               key={log.id}
-              className="border-b border-zinc-800/50 pb-6 last:border-0 last:pb-0"
+              className="border-b border-zinc-800/50 pb-6 last:border-0 last:pb-0 hover:bg-zinc-900/30 p-2 -mx-2 rounded transition-colors"
             >
               <div className="flex items-center gap-3 mb-2">
-                <Zap className="w-4 h-4 text-green-500" />
-                <span className="text-xs font-bold text-white tracking-widest">
+                <Zap className="w-4 h-4 text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                <span className="text-xs font-black text-white tracking-[0.2em]">
                   {log.user}
                 </span>
-                <span className="text-xs text-zinc-600">[{log.time}]</span>
+                <span className="text-[10px] font-bold text-zinc-600 tracking-widest">
+                  [{log.time}]
+                </span>
               </div>
-              <p className="text-sm text-zinc-400 pl-7">{log.message}</p>
+              <p className="text-sm text-zinc-400 pl-7 font-medium">
+                {log.message}
+              </p>
             </div>
           ))}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-zinc-800 relative">
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-green-500/20 to-transparent"></div>
-          <div className="flex gap-4">
+        <div className="mt-8 pt-8 border-t border-zinc-800 relative z-10">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-green-500/40 to-transparent"></div>
+          <div className="flex flex-col sm:flex-row gap-4">
             <input
               type="text"
               placeholder="BROADCAST TO FREQUENCY..."
-              className="flex-1 bg-black border border-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-green-500 transition-colors"
+              className="flex-1 bg-black/80 border border-zinc-800 px-4 py-4 text-sm text-white font-bold placeholder-zinc-700 focus:outline-none focus:border-green-500 transition-colors shadow-inner"
               disabled
             />
             <button
               disabled
-              className="bg-green-500/10 text-green-500 border border-green-500/30 px-6 py-3 text-sm font-bold tracking-widest uppercase hover:bg-green-500/20 transition-colors"
+              className="bg-green-500/10 text-green-500 border border-green-500/40 px-8 py-4 text-sm font-black tracking-[0.2em] uppercase hover:bg-green-500/20 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all"
             >
               Transmit
             </button>
           </div>
-          <p className="text-xs text-rose-500 mt-2 text-right">
-            TRANSMISSION LOCKED UNTIL DROP 1 LAUNCH
+          <p className="text-[10px] font-bold text-rose-500 mt-4 text-right tracking-[0.2em] uppercase flex items-center justify-end gap-2">
+            <Lock className="w-3 h-3" />
+            Transmission locked until Drop 1 launch
           </p>
         </div>
       </div>
